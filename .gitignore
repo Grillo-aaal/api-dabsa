@@ -1,0 +1,13 @@
+# Archivos generados por Maven
+target/
+
+# Configuración de IntelliJ
+.idea/
+*.iml
+
+# Datos recibidos de la agencia
+asignaciones/
+
+# Archivos de sistema de Windows
+Thumbs.db
+Desktop.ini
