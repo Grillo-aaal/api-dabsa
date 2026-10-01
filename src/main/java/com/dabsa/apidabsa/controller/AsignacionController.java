@@ -8,7 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -20,23 +22,24 @@ public class AsignacionController {
     @Value("${api.token}")
     private String apiToken;
 
-    public AsignacionController(
-            AsignacionArchivoService archivoService) {
+    public AsignacionController(AsignacionArchivoService archivoService) {
         this.archivoService = archivoService;
     }
 
+    // =========================================================
+    // RECIBIR ASIGNACIONES DE FORMA MASIVA
+    // =========================================================
+
     @PostMapping
-    public ResponseEntity<?> recibirAsignacion(
-            @RequestHeader(
-                    value = "Authorization",
-                    required = false
-            ) String authorization,
+    public ResponseEntity<?> recibirAsignaciones(
+            @RequestHeader(value = "Authorization", required = false)
+            String authorization,
 
-            @RequestBody Asignacion asignacion) {
+            @RequestBody List<Asignacion> asignaciones) {
 
-        // ==========================================
-        // VALIDAR TOKEN
-        // ==========================================
+        // =====================================================
+        // 1. VALIDAR TOKEN
+        // =====================================================
 
         if (authorization == null
                 || !authorization.startsWith("Bearer ")) {
@@ -54,8 +57,7 @@ public class AsignacionController {
                     .body(respuesta);
         }
 
-        String tokenRecibido =
-                authorization.substring(7);
+        String tokenRecibido = authorization.substring(7);
 
         if (!tokenRecibido.equals(apiToken)) {
 
@@ -72,88 +74,211 @@ public class AsignacionController {
                     .body(respuesta);
         }
 
-        // ==========================================
-        // VALIDAR ASIGNACIÓN
-        // ==========================================
+        // =====================================================
+        // 2. VALIDAR QUE LA LISTA NO ESTÉ VACÍA
+        // =====================================================
 
-        String error = validarAsignacion(asignacion);
+        if (asignaciones == null || asignaciones.isEmpty()) {
 
-        if (error != null) {
-
-            Map<String, Object> respuesta =
-                    new HashMap<>();
+            Map<String, Object> respuesta = new HashMap<>();
 
             respuesta.put("status", "error");
-            respuesta.put("message", error);
+            respuesta.put(
+                    "message",
+                    "La lista de registros no puede estar vacía."
+            );
+
+            respuesta.put("total_recibidos", 0);
+            respuesta.put("total_exitosos", 0);
+            respuesta.put("total_fallidos", 0);
 
             return ResponseEntity
                     .status(HttpStatus.UNPROCESSABLE_ENTITY)
                     .body(respuesta);
         }
 
-        // ==========================================
-        // PROCESAR ASIGNACIÓN
-        // ==========================================
+        // =====================================================
+        // 3. PREPARAR LISTAS DE RESULTADOS
+        // =====================================================
 
-        System.out.println(
-                "================================="
-        );
+        List<Asignacion> exitosos = new ArrayList<>();
+        List<Map<String, Object>> errores = new ArrayList<>();
 
-        System.out.println(
-                "ASIGNACIÓN RECIBIDA"
-        );
+        // =====================================================
+        // 4. PROCESAR CADA REGISTRO
+        // =====================================================
 
-        System.out.println(
-                "Cliente: "
-                + asignacion.getCliente().getNombre()
-        );
+        for (int i = 0; i < asignaciones.size(); i++) {
 
-        if (asignacion.getContrato() != null) {
+            Asignacion asignacion = asignaciones.get(i);
 
-            System.out.println(
-                    "Contratos: "
-                    + asignacion.getContrato().size()
-            );
+            String error = validarAsignacion(asignacion);
+
+            // -------------------------------------------------
+            // REGISTRO CORRECTO
+            // -------------------------------------------------
+
+            if (error == null) {
+
+                exitosos.add(asignacion);
+
+                System.out.println(
+                        "Cliente procesado: "
+                                + asignacion
+                                    .getCliente()
+                                    .getNumero()
+                                + " - "
+                                + asignacion
+                                    .getCliente()
+                                    .getNombre()
+                );
+
+            }
+
+            // -------------------------------------------------
+            // REGISTRO INCORRECTO
+            // -------------------------------------------------
+
+            else {
+
+                Map<String, Object> errorRegistro =
+                        new HashMap<>();
+
+                errorRegistro.put(
+                        "registro",
+                        i + 1
+                );
+
+                // Intentamos incluir el número de cliente
+                if (asignacion != null
+                        && asignacion.getCliente() != null) {
+
+                    errorRegistro.put(
+                            "cliente",
+                            asignacion
+                                    .getCliente()
+                                    .getNumero()
+                    );
+                }
+
+                errorRegistro.put(
+                        "error",
+                        error
+                );
+
+                errores.add(errorRegistro);
+            }
         }
 
-        if (asignacion.getTelefono() != null) {
+        // =====================================================
+        // 5. CALCULAR TOTALES
+        // =====================================================
 
-            System.out.println(
-                    "Teléfonos: "
-                    + asignacion.getTelefono().size()
+        int totalRecibidos = asignaciones.size();
+        int totalExitosos = exitosos.size();
+        int totalFallidos = errores.size();
+
+        // =====================================================
+        // 6. SI TODOS LOS REGISTROS FALLARON
+        // =====================================================
+
+        if (totalExitosos == 0) {
+
+            Map<String, Object> respuesta = new HashMap<>();
+
+            respuesta.put("status", "error");
+
+            respuesta.put(
+                    "message",
+                    "Todos los registros enviados fallaron "
+                            + "en el procesamiento."
             );
+
+            respuesta.put(
+                    "total_recibidos",
+                    totalRecibidos
+            );
+
+            respuesta.put(
+                    "total_exitosos",
+                    0
+            );
+
+            respuesta.put(
+                    "total_fallidos",
+                    totalFallidos
+            );
+
+            respuesta.put(
+                    "errores",
+                    errores
+            );
+
+            return ResponseEntity
+                    .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(respuesta);
         }
 
-        if (asignacion.getDireccion() != null) {
-
-            System.out.println(
-                    "Direcciones: "
-                    + asignacion.getDireccion().size()
-            );
-        }
-
-        // ==========================================
-        // GUARDAR JSON
-        // ==========================================
+        // =====================================================
+        // 7. GUARDAR ÚNICAMENTE LOS REGISTROS CORRECTOS
+        // =====================================================
 
         String rutaArchivo =
-                archivoService.guardarAsignacion(asignacion);
+                archivoService.guardarAsignaciones(exitosos);
 
         System.out.println(
-                "Archivo guardado en: "
-                + rutaArchivo
+                "Archivo guardado en: " + rutaArchivo
         );
 
-        System.out.println(
-                "================================="
-        );
+        // =====================================================
+        // 8. SI ALGUNOS REGISTROS FALLARON
+        // =====================================================
 
-        // ==========================================
-        // RESPUESTA
-        // ==========================================
+        if (totalFallidos > 0) {
 
-        Map<String, Object> respuesta =
-                new HashMap<>();
+            Map<String, Object> respuesta = new HashMap<>();
+
+            respuesta.put(
+                    "status",
+                    "partial_success"
+            );
+
+            respuesta.put(
+                    "message",
+                    "Algunos registros se procesaron "
+                            + "correctamente y otros fallaron."
+            );
+
+            respuesta.put(
+                    "total_recibidos",
+                    totalRecibidos
+            );
+
+            respuesta.put(
+                    "total_exitosos",
+                    totalExitosos
+            );
+
+            respuesta.put(
+                    "total_fallidos",
+                    totalFallidos
+            );
+
+            respuesta.put(
+                    "errores",
+                    errores
+            );
+
+            return ResponseEntity
+                    .status(HttpStatus.MULTI_STATUS)
+                    .body(respuesta);
+        }
+
+        // =====================================================
+        // 9. TODOS LOS REGISTROS FUERON CORRECTOS
+        // =====================================================
+
+        Map<String, Object> respuesta = new HashMap<>();
 
         respuesta.put(
                 "status",
@@ -162,12 +287,22 @@ public class AsignacionController {
 
         respuesta.put(
                 "message",
-                "Asignación recibida correctamente."
+                "Procesamiento masivo terminado con éxito."
         );
 
         respuesta.put(
-                "cliente",
-                asignacion.getCliente().getNumero()
+                "total_recibidos",
+                totalRecibidos
+        );
+
+        respuesta.put(
+                "total_exitosos",
+                totalExitosos
+        );
+
+        respuesta.put(
+                "total_fallidos",
+                0
         );
 
         return ResponseEntity
@@ -175,16 +310,15 @@ public class AsignacionController {
                 .body(respuesta);
     }
 
-    // ==========================================
-    // VALIDACIÓN
-    // ==========================================
+    // =========================================================
+    // VALIDAR CADA ASIGNACIÓN
+    // =========================================================
 
-    private String validarAsignacion(
-            Asignacion asignacion) {
+    private String validarAsignacion(Asignacion asignacion) {
 
         if (asignacion == null) {
 
-            return "La asignación no puede ser nula.";
+            return "El registro no puede ser nulo.";
         }
 
         if (asignacion.getCliente() == null) {
@@ -192,29 +326,44 @@ public class AsignacionController {
             return "Los datos del cliente son obligatorios.";
         }
 
+        // =====================================================
+        // VALIDAR NÚMERO DE CLIENTE
+        // =====================================================
+
         if (asignacion.getCliente().getNumero() == null
-                || asignacion.getCliente()
-                        .getNumero()
-                        .trim()
-                        .isEmpty()) {
+                || asignacion
+                    .getCliente()
+                    .getNumero()
+                    .trim()
+                    .isEmpty()) {
 
             return "El número de cliente es obligatorio.";
         }
 
+        // =====================================================
+        // VALIDAR NOMBRE
+        // =====================================================
+
         if (asignacion.getCliente().getNombre() == null
-                || asignacion.getCliente()
-                        .getNombre()
-                        .trim()
-                        .isEmpty()) {
+                || asignacion
+                    .getCliente()
+                    .getNombre()
+                    .trim()
+                    .isEmpty()) {
 
             return "El nombre del cliente es obligatorio.";
         }
 
+        // =====================================================
+        // VALIDAR CURP
+        // =====================================================
+
         if (asignacion.getCliente().getCurp() == null
-                || asignacion.getCliente()
-                        .getCurp()
-                        .trim()
-                        .isEmpty()) {
+                || asignacion
+                    .getCliente()
+                    .getCurp()
+                    .trim()
+                    .isEmpty()) {
 
             return "La CURP es obligatoria.";
         }

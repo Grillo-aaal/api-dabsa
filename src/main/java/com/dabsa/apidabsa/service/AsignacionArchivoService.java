@@ -7,13 +7,14 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Service
 public class AsignacionArchivoService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public String guardarAsignacion(Asignacion asignacion) {
+    public String guardarAsignaciones(List<Asignacion> asignaciones) {
 
         try {
 
@@ -32,19 +33,19 @@ public class AsignacionArchivoService {
 
             File archivo = new File(
                     carpeta,
-                    "asignacion_" + fecha + ".json"
+                    "asignaciones_" + fecha + ".json"
             );
 
             objectMapper
                     .writerWithDefaultPrettyPrinter()
-                    .writeValue(archivo, asignacion);
+                    .writeValue(archivo, asignaciones);
 
             return archivo.getAbsolutePath();
 
         } catch (Exception e) {
 
             throw new RuntimeException(
-                    "Error al guardar la asignación: "
+                    "Error al guardar las asignaciones: "
                             + e.getMessage(),
                     e
             );
