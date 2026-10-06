@@ -22,7 +22,9 @@ public class AsignacionController {
     @Value("${api.token}")
     private String apiToken;
 
-    public AsignacionController(AsignacionArchivoService archivoService) {
+    public AsignacionController(
+            AsignacionArchivoService archivoService) {
+
         this.archivoService = archivoService;
     }
 
@@ -32,7 +34,10 @@ public class AsignacionController {
 
     @PostMapping
     public ResponseEntity<?> recibirAsignaciones(
-            @RequestHeader(value = "Authorization", required = false)
+
+            @RequestHeader(
+                    value = "Authorization",
+                    required = false)
             String authorization,
 
             @RequestBody List<Asignacion> asignaciones) {
@@ -102,7 +107,9 @@ public class AsignacionController {
         // =====================================================
 
         List<Asignacion> exitosos = new ArrayList<>();
-        List<Map<String, Object>> errores = new ArrayList<>();
+
+        List<Map<String, Object>> errores =
+                new ArrayList<>();
 
         // =====================================================
         // 4. PROCESAR CADA REGISTRO
@@ -114,9 +121,9 @@ public class AsignacionController {
 
             String error = validarAsignacion(asignacion);
 
-            // -------------------------------------------------
+            // =================================================
             // REGISTRO CORRECTO
-            // -------------------------------------------------
+            // =================================================
 
             if (error == null) {
 
@@ -132,12 +139,11 @@ public class AsignacionController {
                                     .getCliente()
                                     .getNombre()
                 );
-
             }
 
-            // -------------------------------------------------
-            // REGISTRO INCORRECTO
-            // -------------------------------------------------
+            // =================================================
+            // REGISTRO RECHAZADO
+            // =================================================
 
             else {
 
@@ -149,7 +155,6 @@ public class AsignacionController {
                         i + 1
                 );
 
-                // Intentamos incluir el número de cliente
                 if (asignacion != null
                         && asignacion.getCliente() != null) {
 
@@ -167,6 +172,13 @@ public class AsignacionController {
                 );
 
                 errores.add(errorRegistro);
+
+                System.out.println(
+                        "Registro rechazado "
+                                + (i + 1)
+                                + ": "
+                                + error
+                );
             }
         }
 
@@ -179,10 +191,24 @@ public class AsignacionController {
         int totalFallidos = errores.size();
 
         // =====================================================
-        // 6. SI TODOS LOS REGISTROS FALLARON
+        // 6. TODOS LOS REGISTROS FALLARON
         // =====================================================
 
         if (totalExitosos == 0) {
+
+            String rutaControl =
+                    archivoService.guardarControlRecepcion(
+                            totalRecibidos,
+                            0,
+                            totalFallidos,
+                            "error",
+                            errores
+                    );
+
+            System.out.println(
+                    "Archivo de control guardado en: "
+                            + rutaControl
+            );
 
             Map<String, Object> respuesta = new HashMap<>();
 
@@ -220,21 +246,36 @@ public class AsignacionController {
         }
 
         // =====================================================
-        // 7. GUARDAR ÚNICAMENTE LOS REGISTROS CORRECTOS
+        // 7. GUARDAR REGISTROS CORRECTOS
         // =====================================================
 
         String rutaArchivo =
                 archivoService.guardarAsignaciones(exitosos);
 
         System.out.println(
-                "Archivo guardado en: " + rutaArchivo
+                "Archivo guardado en: "
+                        + rutaArchivo
         );
 
         // =====================================================
-        // 8. SI ALGUNOS REGISTROS FALLARON
+        // 8. ALGUNOS REGISTROS FALLARON
         // =====================================================
 
         if (totalFallidos > 0) {
+
+            String rutaControl =
+                    archivoService.guardarControlRecepcion(
+                            totalRecibidos,
+                            totalExitosos,
+                            totalFallidos,
+                            "partial_success",
+                            errores
+                    );
+
+            System.out.println(
+                    "Archivo de control guardado en: "
+                            + rutaControl
+            );
 
             Map<String, Object> respuesta = new HashMap<>();
 
@@ -278,6 +319,20 @@ public class AsignacionController {
         // 9. TODOS LOS REGISTROS FUERON CORRECTOS
         // =====================================================
 
+        String rutaControl =
+                archivoService.guardarControlRecepcion(
+                        totalRecibidos,
+                        totalExitosos,
+                        0,
+                        "success",
+                        errores
+                );
+
+        System.out.println(
+                "Archivo de control guardado en: "
+                        + rutaControl
+        );
+
         Map<String, Object> respuesta = new HashMap<>();
 
         respuesta.put(
@@ -314,7 +369,8 @@ public class AsignacionController {
     // VALIDAR CADA ASIGNACIÓN
     // =========================================================
 
-    private String validarAsignacion(Asignacion asignacion) {
+    private String validarAsignacion(
+            Asignacion asignacion) {
 
         if (asignacion == null) {
 
